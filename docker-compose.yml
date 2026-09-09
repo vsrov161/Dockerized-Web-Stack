@@ -1,6 +1,9 @@
+version: '3.8'
+
 services:
   nginx:
     build: ./nginx
+    container_name: nginx
     ports:
       - "80:80"
     depends_on:
@@ -12,11 +15,12 @@ services:
   
   app:
     build: ./app
+    container_name: app
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
-      - DB_NAME=mydb
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      DB_NAME: mydb
     depends_on:
       db:
         condition: service_healthy
@@ -32,28 +36,30 @@ services:
   
   db:
     image: mysql:8.0
+    container_name: mysql_db
     environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-secret}
-      - MYSQL_DATABASE=mydb
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_DATABASE: mydb
     volumes:
       - db_data:/var/lib/mysql
       - ./backups:/backups
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p${DB_PASSWORD:-secret} || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
     restart: unless-stopped
     networks:
       - webnet
   
   backup:
     image: mysql:8.0
+    container_name: backups
     volumes:
       - ./backups:/backups
     environment:
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
     command: >
       sh -c "
         while true; do
@@ -68,7 +74,6 @@ services:
     restart: unless-stopped
     networks:
       - webnet
-      
 
 volumes:
   db_data:
