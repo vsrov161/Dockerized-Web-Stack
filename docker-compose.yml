@@ -4,8 +4,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - app:
-          condition: service_healthy
+      app:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - webnet
