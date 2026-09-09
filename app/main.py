@@ -9,7 +9,8 @@ def get_db_connection():
         host=os.getenv('DB_HOST', 'db'),
         user=os.getenv('DB_USER', 'root'),
         password=os.getenv('DB_PASSWORD', 'secret'),
-        database=os.getenv('DB_NAME', 'mydb')
+        database=os.getenv('DB_NAME', 'mydb'),
+        connection_timeout=5
     )
 
 @app.route('/')
