@@ -1,77 +1,61 @@
-from flask import Flask
-import mysql.connector
 import os
 import time
+import pymysql
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
+DB_CONFIG = {
+    "host": os.environ["DB_HOST"],
+    "user": os.environ["DB_USER"],
+    "password": os.environ["DB_PASSWORD"],
+    "database": os.environ["DB_NAME"],
+}
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST", "mysql"),
-        port=int(os.getenv("MYSQL_PORT", "3306")),
-        database=os.getenv("MYSQL_DATABASE", "webapp"),
-        user=os.getenv("MYSQL_USER", "webapp"),
-        password=os.getenv("MYSQL_PASSWORD", "webapp_password"),
-    )
-
-
-def wait_for_database():
-    while True:
+def wait_for_db(retries=30, delay=2):
+    """Ждём, пока MySQL поднимется — контейнер стартует раньше, чем БД готова принимать соединения."""
+    for _ in range(retries):
         try:
-            connection = get_db_connection()
-            connection.close()
-            print("MySQL is ready")
+            conn = pymysql.connect(**DB_CONFIG)
+            conn.close()
             return
-        except mysql.connector.Error as error:
-            print(f"MySQL is not ready yet: {error}")
-            time.sleep(2)
+        except pymysql.MySQLError:
+            time.sleep(delay)
+    raise RuntimeError("DB is not available")
 
+def init_db():
+    conn = pymysql.connect(**DB_CONFIG)
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL
+            )
+        """)
+        cur.execute("INSERT IGNORE INTO users (id, name) VALUES (1, 'alice'), (2, 'bob')")
+    conn.commit()
+    conn.close()
 
-@app.get("/")
-def index():
-    return {
-        "message": "Hello from Docker!",
-        "hostname": os.uname().nodename
-    }
-
-
-@app.get("/health")
+@app.route("/health")
 def health():
+    """Health check endpoint — его опрашивают Docker и Nginx."""
     try:
-        connection = get_db_connection()
-        connection.close()
+        conn = pymysql.connect(**DB_CONFIG)
+        conn.close()
+        return jsonify(status="ok", db="up"), 200
+    except pymysql.MySQLError:
+        return jsonify(status="degraded", db="down"), 503
 
-        return {
-            "status": "UP",
-            "database": "UP"
-        }
-
-    except mysql.connector.Error:
-        return {
-            "status": "UP",
-            "database": "DOWN"
-        }, 503
-
-
-@app.get("/db")
-def database_test():
-    connection = get_db_connection()
-
-    cursor = connection.cursor()
-
-    cursor.execute("SELECT VERSION()")
-
-    result = cursor.fetchone()
-
-    cursor.close()
-    connection.close()
-
-    return {
-        "mysql_version": result[0]
-    }
-
+@app.route("/api/users")
+def users():
+    conn = pymysql.connect(**DB_CONFIG)
+    with conn.cursor() as cur:
+        cur.execute("SELECT id, name FROM users")
+        rows = cur.fetchall()
+    conn.close()
+    return jsonify([{"id": r[0], "name": r[1]} for r in rows])
 
 if __name__ == "__main__":
-    wait_for_database()
-    app.run(host="0.0.0.0", port=8000)
+    wait_for_db()
+    init_db()
+    app.run(host="0.0.0.0", port=5000)
