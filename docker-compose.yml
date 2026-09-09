@@ -50,10 +50,10 @@ services:
   
   backup:
     image: mysql:8.0
-    environment:
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
     volumes:
       - ./backups:/backups
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
     command: >
       sh -c "
         while true; do
@@ -65,9 +65,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      restart: unless-stopped
-      networks:
-        - webnet
+    restart: unless-stopped
+    networks:
+      - webnet
       
 
 volumes:
