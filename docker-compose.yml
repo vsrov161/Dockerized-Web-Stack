@@ -39,7 +39,7 @@ services:
       - db_data:/var/lib/mysql
       - ./backups:/backups
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${DB_PASSWORD:-secret}"]
       interval: 10s
       timeout: 5s
       retries: 5
