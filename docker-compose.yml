@@ -27,6 +27,7 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    command: gunicorn --bind 0.0.0.0:5000 --timeout 120 --workers 1 main:app
     networks:
       - webnet
 
