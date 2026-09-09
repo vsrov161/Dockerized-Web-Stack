@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   nginx:
     build: ./nginx
-    container_name: nginx
     ports:
       - "80:80"
     depends_on:
@@ -12,10 +9,9 @@ services:
     restart: unless-stopped
     networks:
       - webnet
-  
+
   app:
     build: ./app
-    container_name: app
     environment:
       DB_HOST: db
       DB_USER: root
@@ -33,7 +29,7 @@ services:
     restart: unless-stopped
     networks:
       - webnet
-  
+
   db:
     image: mysql:8.0
     container_name: mysql_db
@@ -42,28 +38,28 @@ services:
       MYSQL_DATABASE: mydb
     volumes:
       - db_data:/var/lib/mysql
-      - ./backups:/backups
+      - ./.my.cnf:/etc/mysql/conf.d/my.cnf:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p${DB_PASSWORD:-secret} || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
       start_period: 60s
     restart: unless-stopped
     networks:
       - webnet
-  
+
   backup:
     image: mysql:8.0
-    container_name: backups
     volumes:
       - ./backups:/backups
+      - ./.my.cnf:/etc/mysql/conf.d/my.cnf:ro
     environment:
       DB_PASSWORD: ${DB_PASSWORD:-secret}
     command: >
       sh -c "
         while true; do
-          mysqldump -h db -u root -p$$DB_PASSWORD mydb > /backups/backup_$$(date +\%Y\%m\%d_\%H\%M\%S).sql &&
+          mysqldump -h db mydb > /backups/backup_$$(date +\%Y\%m\%d_\%H\%M\%S).sql &&
           find /backups -name 'backup_*.sql' -mtime +7 -delete &&
           sleep 86400
         done
