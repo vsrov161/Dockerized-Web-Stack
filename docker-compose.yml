@@ -1,80 +1,56 @@
 services:
+
+  web-app:
+    build:
+      context: ./app
+    expose:
+      - "8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: webapp
+      MYSQL_USER: webapp
+      MYSQL_PASSWORD: webapp_password
+
   nginx:
-    build: ./nginx
+    image: nginx:1.27-alpine
     ports:
       - "80:80"
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - webnet
-
-  app:
-    build: ./app
-    environment:
-      DB_HOST: db
-      DB_USER: root
-      DB_PASSWORD: ${DB_PASSWORD:-secret}
-      DB_NAME: mydb
-    depends_on:
-      db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    restart: unless-stopped
-    command: gunicorn --bind 0.0.0.0:5000 --timeout 120 --workers 1 main:app
-    networks:
-      - webnet
-
-  db:
-    image: mysql:8.0
-    container_name: mysql_db
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
-      MYSQL_DATABASE: mydb
     volumes:
-      - db_data:/var/lib/mysql
-      - ./.my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web-app
+
+  mysql:
+    image: mysql:8.4
+
+    environment:
+      MYSQL_DATABASE: webapp
+      MYSQL_USER: webapp
+      MYSQL_PASSWORD: webapp_password
+      MYSQL_ROOT_PASSWORD: root_password
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-uwebapp",
+          "-pwebapp_password"
+        ]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 10
-      start_period: 60s
-    restart: unless-stopped
-    networks:
-      - webnet
-
-  backup:
-    image: mysql:8.0
-    volumes:
-      - ./backups:/backups
-      - ./.my.cnf:/etc/mysql/conf.d/my.cnf:ro
-    environment:
-      DB_PASSWORD: ${DB_PASSWORD:-secret}
-    command: >
-      sh -c "
-        while true; do
-          mysqldump -h db mydb > /backups/backup_$$(date +\%Y\%m\%d_\%H\%M\%S).sql &&
-          find /backups -name 'backup_*.sql' -mtime +7 -delete &&
-          sleep 86400
-        done
-      "
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - webnet
 
 volumes:
-  db_data:
-
-networks:
-  webnet:
-    driver: bridge
+  mysql_data:
