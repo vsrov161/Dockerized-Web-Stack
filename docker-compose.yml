@@ -1,0 +1,78 @@
+services:
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - app:
+          condition: services_healthy
+    restart: unless-stopped
+    networks:
+      - webnet
+  
+  app:
+    build: ./app
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+      - DB_NAME=mydb
+    depends_on:
+      db:
+        condition: services_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "htpp://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - webnet
+  
+  db:
+    build: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-secret}
+      - MYSQL_DATABASE=mydb
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-secret}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - webnet
+  
+  backup:
+    image: mysql:8.0
+    environment:
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
+    volumes:
+      - ./backups:/backups
+    command: >
+      sh -c "
+        while true; do
+          mysqldump -h db -u root -p$$DB_PASSWORD mydb > /backups/backup_$$(date +\%Y\%m\%d_\%H\%M\%S).sql &&
+          find /backups -name 'backup_*.sql' -mtime +7 -delete &&
+          sleep 86400
+        done
+      "
+    depends_on:
+      db:
+        condition: services_healthy
+      restart: unless-stopped
+      networks:
+        - webnet
+      
+
+volumes:
+  db_data:
+
+networks:
+  webnet:
+    driver: bridge
