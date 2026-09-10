@@ -91,4 +91,8 @@ def health():
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    # Debug-режим включаем ТОЛЬКО через переменную окружения.
+    # В prod (базовый docker-compose.yml) FLASK_DEBUG не задан -> debug=False.
+    # В dev (docker-compose.override.yml) FLASK_DEBUG=1 -> hot-reload + traceback в браузере.
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(debug=debug_mode, host="0.0.0.0", port=5000)
