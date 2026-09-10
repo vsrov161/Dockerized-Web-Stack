@@ -18,7 +18,9 @@ services:
     restart: unless-stopped
 
   web:
-    build: .
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     container_name: devops-demo-web
     # ports НЕ публикуем — контейнер доступен только внутри сети compose,
     # по имени сервиса "web" и порту 5000. Снаружи хоста его не видно.
